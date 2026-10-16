@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Idle Compact",
+    "description": "Compacts a long session after you have been idle for a while, before the model's KV cache expires, to save tokens."
+  }
+}

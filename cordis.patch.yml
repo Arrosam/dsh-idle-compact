@@ -1,0 +1,5 @@
+# Row id doubles as the settings namespace the client page edits (client.js ENTRY_ID).
+- insert:
+    - id: idle-compact
+      name: 'dsh-idle-compact'
+      config: {}
