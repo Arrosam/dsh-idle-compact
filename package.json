@@ -1,8 +1,27 @@
 {
   "name": "dsh-idle-compact",
   "version": "0.1.0",
-  "private": true,
   "description": "Compact a long session automatically when the user has been idle, before the provider KV cache expires.",
+  "license": "MIT",
+  "author": "Samuel Lin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arrosam/dsh-idle-compact.git"
+  },
+  "homepage": "https://github.com/Arrosam/dsh-idle-compact#readme",
+  "bugs": {
+    "url": "https://github.com/Arrosam/dsh-idle-compact/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "compaction",
+    "kv-cache"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "exports": {
     ".": "./index.js",
@@ -11,12 +30,22 @@
     "./icon": "./icon.svg",
     "./package.json": "./package.json"
   },
-  "files": ["index.js", "client.js", "cordis.patch.yml", "locale/*.json", "icon.svg"],
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
   "peerDependencies": {
     "@deepseek-ai/schemastery": "^3"
   },
   "dsh": {
-    "bundle": { "patch": "./cordis.patch.yml" },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "platform": "web",
       "inject": [

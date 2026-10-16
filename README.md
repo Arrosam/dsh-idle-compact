@@ -59,3 +59,7 @@ Each compaction makes one summarization call to your model. It's cheap because t
 | `client.js` | Browser half: the settings form on the Plugins page. |
 | `cordis.patch.yml` | Bundle patch that inserts the `idle-compact` row. |
 | `locale/*.json`, `icon.svg` | Display metadata for the plugin manager. |
+
+## License
+
+MIT
