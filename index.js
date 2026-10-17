@@ -380,17 +380,28 @@ export function apply(ctx, config) {
     return replayStream(marker.entry.chunks)
   })
 
-  ctx.on('agent/status', ({ agent, status }) => {
+  /** Start (or restart) the idle timer for an agent that is waiting for the user. */
+  const arm = (agent) => {
     disarm(agent)
-    if (status !== AGENT_STATUS_IDLE) {
-      // The conversation is moving on; a prepared summary would be stale.
-      dropPrepared(agent.session)
-      return
-    }
     // Subagents never receive a user reply; compacting them would only spend tokens.
     if (agent.session?.header?.origin === SUBAGENT_ORIGIN) return
     const delayMs = live(config.idleSeconds, DEFAULTS.idleSeconds) * MS_PER_SECOND
     timers.set(agent, ctx.timeout(() => { void fire(agent) }, delayMs))
+  }
+
+  ctx.on('agent/status', ({ agent, status }) => {
+    if (status === AGENT_STATUS_IDLE) { arm(agent); return }
+    disarm(agent)
+    // The conversation is moving on; a prepared summary would be stale.
+    dropPrepared(agent.session)
+  })
+
+  // An agent starts life idle and DSH reports no status change for it: a session resumed
+  // after a restart, or reopened later, would otherwise never arm a timer until its next
+  // turn. Arm it here too; if it is woken right away, `agent/status` disarms it again.
+  // Serial listener: return immediately so agent creation is not delayed.
+  ctx.on('agent/created', ({ agent }) => {
+    if (agent.status === AGENT_STATUS_IDLE) arm(agent)
   })
 
   // History changed without a turn (another plugin's message, a rewind): drop the summary.

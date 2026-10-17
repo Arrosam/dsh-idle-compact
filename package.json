@@ -1,6 +1,6 @@
 {
   "name": "dsh-idle-compact",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Prepare a compaction of a long session while the user is idle, before the provider KV cache expires, and apply it with one click and no new model call.",
   "license": "MIT",
   "author": "Samuel Lin",
