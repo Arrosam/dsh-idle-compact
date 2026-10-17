@@ -4,7 +4,7 @@
  * 1. The plugin's settings form on the Plugins page (`plugins.bundle.config`, keyed by
  *    package name). Values are read and written through the host `configForms` service
  *    for the Host row `idle-compact`; only Save writes.
- * 2. The "Apply compaction" button in each session's header actions. It follows the
+ * 2. The "Apply compaction" bar just above each session's message input. It follows the
  *    Host's server-sent state stream for that session and appears only while a prepared
  *    compaction exists; clicking it asks the Host to run `/compact` with that result.
  *
@@ -25,10 +25,11 @@ window.__ModuleLoader__.load({
     const MIN = { contextThresholdTokens: 1, idleSeconds: 1 }
     /** Must match the Host's `API_PATH` (index.js). */
     const API_PATH = '/dsh-idle-compact/api'
-    const HEADER_ACTIONS_SLOT = 'conversation.session.header.actions'
-    const HEADER_ACTION_ID = 'idle-compact-apply'
-    /** Header actions sort ascending; after the built-in jobs action (20). */
-    const HEADER_ACTION_ORDER = 30
+    /** Full-width entries directly above the composer card, where the user is about to type. */
+    const INPUT_DOCK_SLOT = 'conversation.input.dock'
+    const APPLY_ENTRY_ID = 'idle-compact-apply'
+    /** Dock entries sort ascending; after the built-in goal bar (10). */
+    const APPLY_ENTRY_ORDER = 20
     const APPLY_ERROR_MS = 6000
 
     const en = {
@@ -36,6 +37,7 @@ window.__ModuleLoader__.load({
       thresholdHint: 'Prepare a compaction only when the session context has reached this length. Default 256000.',
       idle: 'Idle time (seconds)',
       idleHint: 'Prepare a compaction after you have not replied for this long. Default 300 (5 minutes).',
+      prepared: 'A compaction of {items} history items (~{tokens} tokens) is ready.',
       apply: 'Apply compaction',
       applying: 'Compacting…',
       applyTitle: 'Compact {items} history items (~{tokens} tokens) using the summary prepared while you were away. No new model call.',
@@ -57,6 +59,7 @@ window.__ModuleLoader__.load({
       thresholdHint: '仅当会话上下文达到此长度时预先准备压缩。默认 256000。',
       idle: '空闲时间（秒）',
       idleHint: '你在这段时间内未回复时预先准备压缩。默认 300（5 分钟）。',
+      prepared: '已准备好压缩：{items} 条历史记录（约 {tokens} tokens）。',
       apply: '应用压缩',
       applying: '压缩中…',
       applyTitle: '使用你离开时准备好的摘要，压缩 {items} 条历史记录（约 {tokens} tokens），不会再调用模型。',
@@ -94,8 +97,11 @@ window.__ModuleLoader__.load({
       '.ic-btn-primary:hover:not(:disabled){background:var(--dsw-alias-button-primary-hover)}',
       '.ic-link{background:none;border:none;padding:0;font:inherit;font-size:12px;cursor:pointer;color:var(--dsw-alias-brand-primary)}',
       '.ic-actions{display:flex;align-items:center;gap:8px}',
-      '.ic-apply{display:inline-flex;align-items:center;gap:6px}',
-      '.ic-apply .ic-btn{height:28px;padding:0 10px;font-size:12px;white-space:nowrap}',
+      // Same width rules as the built-in goal bar in this slot: the composer's layout
+      // variables keep the bar aligned with the input card on every layout.
+      '.ic-apply{box-sizing:border-box;width:calc(100% - 2 * var(--dsh-composer-side-clearance,16px));max-width:calc(var(--dsh-composer-card-max-width,712px) - 4 * var(--dsh-composer-dock-inset,8px));display:flex;align-items:center;gap:10px;margin:0 auto 8px;padding:5px 5px 5px 12px;border-radius:var(--dsw-radius-md,8px);font-size:12px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-brand-primary)}',
+      '.ic-apply-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.ic-apply .ic-btn{height:28px;padding:0 12px;font-size:12px;white-space:nowrap}',
     ].join('')
 
     const fmt = (v) => (typeof v === 'number' ? String(v) : '')
@@ -234,16 +240,18 @@ window.__ModuleLoader__.load({
             setBusy(false)
           }
         }
-        return h('span', { className: 'ic-apply' },
+        return h('div', { className: 'ic-apply' },
           h('style', null, css),
+          h('span', { className: 'ic-apply-text' },
+            state.prepared ? fill(t('prepared'), { items: state.items, tokens: state.tokens }) : null),
+          error !== '' ? h('span', { className: 'ic-err', role: 'alert' }, error) : null,
           state.prepared || applying ? h('button', {
             type: 'button',
             className: 'ic-btn ic-btn-primary',
             disabled: applying,
             title: fill(t('applyTitle'), { items: state.items, tokens: state.tokens }),
             onClick: run,
-          }, applying ? t('applying') : t('apply')) : null,
-          error !== '' ? h('span', { className: 'ic-err', role: 'alert' }, error) : null)
+          }, applying ? t('applying') : t('apply')) : null)
       }
     }
 
@@ -259,10 +267,10 @@ window.__ModuleLoader__.load({
           locale: NS,
         }, Settings))), 'idle-compact: settings page')
         const ApplyAction = makeApplyAction(t)
-        ctx.effect(() => ctx.slots.inject(HEADER_ACTIONS_SLOT, () => ctx.slots.register({
-          name: HEADER_ACTIONS_SLOT,
-          id: HEADER_ACTION_ID,
-          order: HEADER_ACTION_ORDER,
+        ctx.effect(() => ctx.slots.inject(INPUT_DOCK_SLOT, () => ctx.slots.register({
+          name: INPUT_DOCK_SLOT,
+          id: APPLY_ENTRY_ID,
+          order: APPLY_ENTRY_ORDER,
           locale: NS,
         }, ApplyAction)), 'idle-compact: apply button')
       },

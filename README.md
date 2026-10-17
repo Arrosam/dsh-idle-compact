@@ -17,7 +17,7 @@ If you walk away from a long session, this plugin produces the compaction summar
    - no background job or subagent is running for the session;
    - the session's context, measured with DSH's token meter, has reached the threshold.
 4. Preparing runs exactly the summarization request DSH's `/compact` would make, and keeps the result. Your session is not changed.
-5. An **Apply compaction** button appears in the session header. Hover it to see how many history items it covers.
+5. An **Apply compaction** bar appears just above the message input, showing how many history items it covers.
 6. Clicking it runs DSH's own `/compact` command, exactly as if you had typed it, and answers its summarization request with the prepared result, so no new model call is made. The conversation shows the usual `/compact` card with its "Compacted N history items" reply.
 
 The prepared summary is only valid for the conversation it summarized. If you send another message (or the history changes in any other way), it is discarded and the button disappears; the next idle period that qualifies prepares a fresh one. If the conversation somehow differs at the moment you click, `/compact` makes its own model call instead of using a stale summary.
@@ -46,7 +46,7 @@ You can also set them in your profile's `cordis.patch.yml`:
 
 ## Install
 
-Requires DSH 0.2.0 or later with the Web UI. Its Plugins page hosts the settings form, and the session header hosts the Apply button.
+Requires DSH 0.2.0 or later with the Web UI. Its Plugins page hosts the settings form, and the area above the message input hosts the Apply bar.
 
 ```sh
 dsh plugin add github:Arrosam/dsh-idle-compact
@@ -65,7 +65,7 @@ Prepared summaries are kept in memory only. Restarting DSH discards them.
 | File | Role |
 |---|---|
 | `index.js` | Host half: idle timers, the preparation, and the state/apply endpoint under `/dsh-idle-compact/api`. |
-| `client.js` | Browser half: the settings form on the Plugins page and the Apply button in the session header. |
+| `client.js` | Browser half: the settings form on the Plugins page and the Apply bar above the message input. |
 | `cordis.patch.yml` | Bundle patch that inserts the `idle-compact` row. |
 | `locale/*.json`, `icon.svg` | Display metadata for the plugin manager. |
 
