@@ -1,7 +1,7 @@
 {
   "name": "dsh-idle-compact",
-  "version": "0.1.1",
-  "description": "Compact a long session automatically when the user has been idle, before the provider KV cache expires.",
+  "version": "0.2.0",
+  "description": "Prepare a compaction of a long session while the user is idle, before the provider KV cache expires, and apply it with one click and no new model call.",
   "license": "MIT",
   "author": "Samuel Lin",
   "repository": {
@@ -51,7 +51,8 @@
       "inject": [
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-settings",
-        "@deepseek-ai/dsh-client-ui-plugin-manager"
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
+        "@deepseek-ai/dsh-client-ui-conversation"
       ]
     }
   }

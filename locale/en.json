@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Idle Compact",
-    "description": "Compacts a long session after you have been idle for a while, before the model's KV cache expires, to save tokens."
+    "description": "Prepares a compaction of a long session while you are idle, before the model's KV cache expires, and lets you apply it with one click and no new model call."
   }
 }

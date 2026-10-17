@@ -1,9 +1,15 @@
 /**
- * Idle Compact — browser half: the plugin's settings form on the Plugins page
- * (`plugins.bundle.config`, keyed by package name). Values are read and written
- * through the host `configForms` service for the Host row `idle-compact`; only
- * Save writes. Controls are plain elements styled with host theme tokens rather
- * than imported host UI packages, so host UI refactors cannot break this page.
+ * Idle Compact — browser half.
+ *
+ * 1. The plugin's settings form on the Plugins page (`plugins.bundle.config`, keyed by
+ *    package name). Values are read and written through the host `configForms` service
+ *    for the Host row `idle-compact`; only Save writes.
+ * 2. The "Apply compaction" button in each session's header actions. It follows the
+ *    Host's server-sent state stream for that session and appears only while a prepared
+ *    compaction exists; clicking it asks the Host to run `/compact` with that result.
+ *
+ * Controls are plain elements styled with host theme tokens rather than imported host UI
+ * packages, so host UI refactors cannot break them.
  */
 window.__ModuleLoader__.load({
   id: 'dsh-idle-compact',
@@ -17,12 +23,23 @@ window.__ModuleLoader__.load({
     const FIELDS = ['contextThresholdTokens', 'idleSeconds']
     const DEFAULTS = { contextThresholdTokens: 256000, idleSeconds: 300 }
     const MIN = { contextThresholdTokens: 1, idleSeconds: 1 }
+    /** Must match the Host's `API_PATH` (index.js). */
+    const API_PATH = '/dsh-idle-compact/api'
+    const HEADER_ACTIONS_SLOT = 'conversation.session.header.actions'
+    const HEADER_ACTION_ID = 'idle-compact-apply'
+    /** Header actions sort ascending; after the built-in jobs action (20). */
+    const HEADER_ACTION_ORDER = 30
+    const APPLY_ERROR_MS = 6000
 
     const en = {
       threshold: 'Context length threshold (tokens)',
-      thresholdHint: 'Compact only when the session context is longer than this. Default 256000.',
+      thresholdHint: 'Prepare a compaction only when the session context has reached this length. Default 256000.',
       idle: 'Idle time (seconds)',
-      idleHint: 'Compact after you have not replied for this long. Default 300 (5 minutes).',
+      idleHint: 'Prepare a compaction after you have not replied for this long. Default 300 (5 minutes).',
+      apply: 'Apply compaction',
+      applying: 'Compacting…',
+      applyTitle: 'Compact {items} history items (~{tokens} tokens) using the summary prepared while you were away. No new model call.',
+      applyFailed: 'Compaction did not apply.',
       reset: 'Reset to default',
       overridden: 'Custom',
       save: 'Save',
@@ -37,9 +54,13 @@ window.__ModuleLoader__.load({
     }
     const zh = {
       threshold: '上下文长度阈值（token）',
-      thresholdHint: '仅当会话上下文超过此长度时压缩。默认 256000。',
+      thresholdHint: '仅当会话上下文达到此长度时预先准备压缩。默认 256000。',
       idle: '空闲时间（秒）',
-      idleHint: '你在这段时间内未回复时压缩。默认 300（5 分钟）。',
+      idleHint: '你在这段时间内未回复时预先准备压缩。默认 300（5 分钟）。',
+      apply: '应用压缩',
+      applying: '压缩中…',
+      applyTitle: '使用你离开时准备好的摘要，压缩 {items} 条历史记录（约 {tokens} tokens），不会再调用模型。',
+      applyFailed: '压缩未能应用。',
       reset: '恢复默认',
       overridden: '已自定义',
       save: '保存',
@@ -73,6 +94,8 @@ window.__ModuleLoader__.load({
       '.ic-btn-primary:hover:not(:disabled){background:var(--dsw-alias-button-primary-hover)}',
       '.ic-link{background:none;border:none;padding:0;font:inherit;font-size:12px;cursor:pointer;color:var(--dsw-alias-brand-primary)}',
       '.ic-actions{display:flex;align-items:center;gap:8px}',
+      '.ic-apply{display:inline-flex;align-items:center;gap:6px}',
+      '.ic-apply .ic-btn{height:28px;padding:0 10px;font-size:12px;white-space:nowrap}',
     ].join('')
 
     const fmt = (v) => (typeof v === 'number' ? String(v) : '')
@@ -158,6 +181,72 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /** Resolve an endpoint against the page, so the app also works when mounted under a sub-path. */
+    const apiUrl = (path) => new URL(API_PATH.slice(1) + path, document.baseURI).toString()
+    const fill = (text, values) => text.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ''))
+
+    /**
+     * Follow one session's prepared state from the Host's event stream. EventSource
+     * reconnects by itself, and every (re)connection starts with the current state.
+     */
+    function usePrepared(sessionId) {
+      const [state, setState] = React.useState({ prepared: false })
+      React.useEffect(() => {
+        if (typeof sessionId !== 'string' || sessionId === '') return undefined
+        setState({ prepared: false })
+        const source = new EventSource(apiUrl('/events?sessionId=' + encodeURIComponent(sessionId)))
+        source.onmessage = (event) => {
+          try { setState(JSON.parse(event.data)) } catch { /* a malformed frame leaves the last good state */ }
+        }
+        return () => source.close()
+      }, [sessionId])
+      return state
+    }
+
+    function makeApplyAction(t) {
+      return function IdleCompactApply({ sessionId }) {
+        const state = usePrepared(sessionId)
+        const [busy, setBusy] = React.useState(false)
+        const [error, setError] = React.useState('')
+        React.useEffect(() => {
+          if (error === '') return undefined
+          const timer = setTimeout(() => setError(''), APPLY_ERROR_MS)
+          return () => clearTimeout(timer)
+        }, [error])
+        if (!state.prepared && !busy && error === '') return null
+        const applying = busy || state.applying === true
+        const run = async () => {
+          setBusy(true)
+          setError('')
+          try {
+            const response = await fetch(apiUrl('/apply'), {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ sessionId }),
+            })
+            const outcome = await response.json().catch(() => ({ ok: false }))
+            // A failed /compact already shows its own card in the conversation; this only covers
+            // failures that never reached the command (stale summary, unloaded plugin).
+            if (outcome.ok !== true && outcome.result === undefined) setError(t('applyFailed'))
+          } catch {
+            setError(t('applyFailed'))
+          } finally {
+            setBusy(false)
+          }
+        }
+        return h('span', { className: 'ic-apply' },
+          h('style', null, css),
+          state.prepared || applying ? h('button', {
+            type: 'button',
+            className: 'ic-btn ic-btn-primary',
+            disabled: applying,
+            title: fill(t('applyTitle'), { items: state.items, tokens: state.tokens }),
+            onClick: run,
+          }, applying ? t('applying') : t('apply')) : null,
+          error !== '' ? h('span', { className: 'ic-err', role: 'alert' }, error) : null)
+      }
+    }
+
     return {
       inject: ['slots', 'locale', 'configForms'],
       apply(ctx) {
@@ -169,6 +258,13 @@ window.__ModuleLoader__.load({
           key: PACKAGE_NAME,
           locale: NS,
         }, Settings))), 'idle-compact: settings page')
+        const ApplyAction = makeApplyAction(t)
+        ctx.effect(() => ctx.slots.inject(HEADER_ACTIONS_SLOT, () => ctx.slots.register({
+          name: HEADER_ACTIONS_SLOT,
+          id: HEADER_ACTION_ID,
+          order: HEADER_ACTION_ORDER,
+          locale: NS,
+        }, ApplyAction)), 'idle-compact: apply button')
       },
     }
   },
